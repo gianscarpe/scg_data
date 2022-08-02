@@ -1,20 +1,18 @@
-import numpy as np
-import scipy
-from pathlib import Path
-from plyfile import PlyData
-import open3d as o3d
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 import copy
+import glob
+import json
+import sys
+from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
+import ray
+import scipy
+from sklearn.decomposition import PCA
 # import mpi4py
 from tqdm import tqdm
-import json
 
-import scipy.spatial.distance as dist
-import sys
-import ray
-
+from plyfile import PlyData
 
 ITEMS_TO_SKIP = [1, 2, 22, 31]  # FLOOR, WALL, CEILING, PERSON
 
@@ -165,7 +163,7 @@ def calc_scene_distances(list_):  # (partial_scene, complete_scene):
 
     ##############    objects in partial
 
-    for obj_i in range(1, 38):
+    for obj_i in range(1, 38):  # 38?
         if obj_i in ITEMS_TO_SKIP:
             continue
         ind_obj_i = label == obj_i
@@ -276,7 +274,7 @@ def calc_scene_distances(list_):  # (partial_scene, complete_scene):
 
             j["relative_pos_to_masked"].append(tmp_rel)
 
-    if len(j['masked'])==0 or len(j['labels'])<3:
+    if len(j["masked"]) == 0 or len(j["labels"]) < 3:
         return
 
     with (out_dir / f"{complete_scene.stem}_{partial_scene.stem}.json").open("w") as f:
@@ -285,26 +283,21 @@ def calc_scene_distances(list_):  # (partial_scene, complete_scene):
     return j
 
 
-def main():
-    scene_ply_name = sorted(list(Path("annotated_ply").glob("*.ply")))
+DATA_DIR = "/data/pcds"
 
-    ROOT_PARTIAL_DIR = Path("partial_pcds")
-    SCENE_DIR = sorted([x for x in ROOT_PARTIAL_DIR.iterdir() if x.is_dir()])
+
+def main():
+    scene_complete = sorted(list(Path(DATA_DIR).glob("*full*.ply")))
+
     ROOT_COMPLETE_DIR = Path("annotated_ply")
     jobs = []
     arg_list = []
-    for scene in SCENE_DIR:
-        partial_scenes = sorted(list(scene.glob("*.ply")))
-        scene_name = scene.stem
 
-        complete = ROOT_COMPLETE_DIR / f"{scene_name}.ply"
-
-        for partial in partial_scenes:
-            jobs.append(calc_scene_distances.remote((partial, complete)))
-
-            pass
-
-    pass
+    partial_scenes = sorted(list(Path(DATA_DIR).glob("*partial*.ply")))
+    for partial_scene in partial_scenes:
+        id_scene = int(partial_scene.stem.split("_")[0])
+        complete = scene_complete[id_scene]
+        jobs.append(calc_scene_distances.remote((partial_scene, complete)))
 
     with tqdm(total=len(jobs)) as pbar:
 
